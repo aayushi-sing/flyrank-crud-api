@@ -107,6 +107,8 @@ http://localhost:8000/docs
 ![Swagger UI](screenshots/swagger-ui.png)
 
 ## Project Structure
+
+```text
 flyrank-crud-api/
 │
 ├── main.py
@@ -115,6 +117,7 @@ flyrank-crud-api/
 ├── .gitignore
 └── screenshots/
     └── swagger-ui.png
+```
 
 ## Notes
 
