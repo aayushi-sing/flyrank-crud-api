@@ -52,13 +52,6 @@ class TaskUpdate(BaseModel):
     title: str | None = None
     done: bool | None = None
 
-tasks = [
-    {"id": 1, "title": "Learn FastAPI", "done": False},
-    {"id": 2, "title": "Build CRUD API", "done": False},
-    {"id": 3, "title": "Test the API", "done": True}
-]
-
-
 @app.get("/", description="Get information about the Task API")
 def root():
     return {
@@ -149,31 +142,66 @@ def create_task(task: TaskCreate):
 
 @app.put("/tasks/{id}", description="Update an existing task")
 def update_task(id: int, task_update: TaskUpdate):
-    for task in tasks:
-        if task["id"] == id:
-            if task_update.title is not None:
-                if not task_update.title.strip():
-                    return JSONResponse(
-                        status_code=400,
-                        content={"error": "Title cannot be empty"}
-                    )
-                task["title"] = task_update.title.strip()
 
-            if task_update.done is not None:
-                task["done"] = task_update.done
+    if task_update.title is None and task_update.done is None:
+        return JSONResponse(
+            status_code=400,
+            content={"error": "At least one field is required"}
+        )
 
-            if task_update.title is None and task_update.done is None:
-                return JSONResponse(
-                    status_code=400,
-                    content={"error": "At least one field is required"}
-                )
+    if task_update.title is not None:
+        if not task_update.title.strip():
+            return JSONResponse(
+                status_code=400,
+                content={"error": "Title cannot be empty"}
+            )
 
-            return task
+    conn = get_db_connection()
 
-    return JSONResponse(
-        status_code=404,
-        content={"error": f"Task {id} not found"}
+    row = conn.execute(
+        "SELECT * FROM tasks WHERE id = ?",
+        (id,)
+    ).fetchone()
+
+    if row is None:
+        conn.close()
+
+        return JSONResponse(
+            status_code=404,
+            content={"error": f"Task {id} not found"}
+        )
+
+    new_title = (
+        task_update.title.strip()
+        if task_update.title is not None
+        else row["title"]
     )
+
+    new_done = (
+        task_update.done
+        if task_update.done is not None
+        else bool(row["done"])
+    )
+
+    conn.execute(
+        """
+        UPDATE tasks
+        SET title = ?, done = ?
+        WHERE id = ?
+        """,
+        (new_title, int(new_done), id)
+    )
+
+    conn.commit()
+
+    updated_row = conn.execute(
+        "SELECT * FROM tasks WHERE id = ?",
+        (id,)
+    ).fetchone()
+
+    conn.close()
+
+    return dict(updated_row)
 
 @app.delete(
     "/tasks/{id}",
@@ -181,12 +209,24 @@ def update_task(id: int, task_update: TaskUpdate):
     description="Delete a task by ID"
 )
 def delete_task(id: int):
-    for index, task in enumerate(tasks):
-        if task["id"] == id:
-            tasks.pop(index)
-            return Response(status_code=204)
 
-    return JSONResponse(
-        status_code=404,
-        content={"error": f"Task {id} not found"}
+    conn = get_db_connection()
+
+    cursor = conn.execute(
+        "DELETE FROM tasks WHERE id = ?",
+        (id,)
     )
+
+    conn.commit()
+
+    if cursor.rowcount == 0:
+        conn.close()
+
+        return JSONResponse(
+            status_code=404,
+            content={"error": f"Task {id} not found"}
+        )
+
+    conn.close()
+
+    return Response(status_code=204)
