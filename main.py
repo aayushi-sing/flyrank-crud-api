@@ -110,6 +110,29 @@ def create_task(task: TaskCreate):
             content={"error": "Title is required"}
         )
 
+    conn = get_db_connection()
+
+    cursor = conn.execute(
+        "INSERT INTO tasks (title, done) VALUES (?, ?)",
+        (task.title.strip(), 0)
+    )
+
+    conn.commit()
+
+    new_id = cursor.lastrowid
+
+    row = conn.execute(
+        "SELECT * FROM tasks WHERE id = ?",
+        (new_id,)
+    ).fetchone()
+
+    conn.close()
+
+    return JSONResponse(
+        status_code=201,
+        content=dict(row)
+    )
+
 
     new_task = {
         "id": len(tasks) + 1,
